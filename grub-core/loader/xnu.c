@@ -33,6 +33,7 @@
 #include <grub/extcmd.h>
 #include <grub/env.h>
 #include <grub/i18n.h>
+#include <grub/lib/plist.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -915,107 +916,35 @@ grub_xnu_check_os_bundle_required (char *plistname,
 				   const char *osbundlereq,
 				   char **binname)
 {
-  grub_file_t file;
-  char *buf = 0, *tagstart = 0, *ptr1 = 0, *keyptr = 0;
-  char *stringptr = 0, *ptr2 = 0;
-  grub_size_t size;
-  int depth = 0;
-  int ret;
-  int osbundlekeyfound = 0, binnamekeyfound = 0;
-  if (binname)
-    *binname = 0;
-
-  file = grub_file_open (plistname);
-  if (! file)
-    return 0;
-
-  size = grub_file_size (file);
-  buf = grub_malloc (size);
-  if (! buf)
-    {
-      grub_file_close (file);
-      return 0;
-    }
-  if (grub_file_read (file, buf, size) != (grub_ssize_t) (size))
-    {
-      grub_file_close (file);
-      if (!grub_errno)
-	grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"), plistname);
-      return 0;
-    }
-  grub_file_close (file);
-
-  /* Set the return value for the case when no OSBundleRequired tag is found. */
-  if (osbundlereq)
-    ret = grub_strword (osbundlereq, "all") || grub_strword (osbundlereq, "-");
-  else
-    ret = 1;
-
-  /* Parse plist. It's quite dirty and inextensible but does its job. */
-  for (ptr1 = buf; ptr1 < buf + size; ptr1++)
-    switch (*ptr1)
-      {
-      case '<':
-	tagstart = ptr1;
-	*ptr1 = 0;
-	if (keyptr && depth == 4
-	    && grub_strcmp (keyptr, "OSBundleRequired") == 0)
-	  osbundlekeyfound = 1;
-	if (keyptr && depth == 4 &&
-	    grub_strcmp (keyptr, "CFBundleExecutable") == 0)
-	  binnamekeyfound = 1;
-	if (stringptr && osbundlekeyfound && osbundlereq && depth == 4)
-	  {
-	    for (ptr2 = stringptr; *ptr2; ptr2++)
-	      *ptr2 = grub_tolower (*ptr2);
-	    ret = grub_strword (osbundlereq, stringptr)
-	      || grub_strword (osbundlereq, "all");
-	  }
-	if (stringptr && binnamekeyfound && binname && depth == 4)
-	  {
-	    if (*binname)
-	      grub_free (*binname);
-	    *binname = grub_strdup (stringptr);
-	  }
-
-	*ptr1 = '<';
-	keyptr = 0;
-	stringptr = 0;
-	break;
-      case '>':
-	if (! tagstart)
-	  {
-	    grub_free (buf);
-	    grub_error (GRUB_ERR_BAD_OS, "can't parse %s", plistname);
-	    return 0;
-	  }
-	*ptr1 = 0;
-	if (tagstart[1] == '?' || ptr1[-1] == '/')
-	  {
-	    osbundlekeyfound = 0;
-	    *ptr1 = '>';
-	    break;
-	  }
-	if (depth == 3 && grub_strcmp (tagstart + 1, "key") == 0)
-	  keyptr = ptr1 + 1;
-	if (depth == 3 && grub_strcmp (tagstart + 1, "string") == 0)
-	  stringptr = ptr1 + 1;
-	else if (grub_strcmp (tagstart + 1, "/key") != 0)
-	  {
-	    osbundlekeyfound = 0;
-	    binnamekeyfound = 0;
-	  }
-	*ptr1 = '>';
-
-	if (tagstart[1] == '/')
-	  depth--;
-	else
-	  depth++;
-	break;
-      }
-  grub_free (buf);
-
-  return ret;
+	int ret;
+	PLIST *infoplist = NULL;
+	if (binname){
+		*binname = 0;
+	}
+	
+	if(plist_open(plistname, infoplist) < 0){
+		grub_error (GRUB_ERR_BAD_OS, N_("Error while loading plist file %s"), plistname);
+		return 0;
+	}
+	
+	/* Set the return value for the case when no OSBundleRequired tag is found. */
+	if (osbundlereq){
+		ret = grub_strword (osbundlereq, "all") || grub_strword (osbundlereq, "-");
+	} else {
+		ret = 1;
+	}
+	
+	PLIST_NODE *CFBundleExec, *OSBundleReq;
+	CFBundleExec = plist_getNodeByKey(infoplist, "CFBundleExecutable", false);
+	OSBundleReq = plist_getNodeByKey(infoplist, "OSBundleRequired", false);
+	if(CFBundleExec && !grub_strcmp(CFBundleExec->tagName, "string") && CFBundleExec->textContent){
+		*binname = grub_strdup(CFBundleExec->textContent);
+	}
+	if(OSBundleReq && !grub_strcmp(OSBundleReq->tagName, "string") && OSBundleReq->textContent){
+		ret = grub_strword (osbundlereq, OSBundleReq->textContent) || grub_strword (osbundlereq, "all");
+	}
+	plist_close(infoplist);
+	return ret;
 }
 
 /* Context for grub_xnu_scan_dir_for_kexts.  */
@@ -1194,9 +1123,7 @@ grub_xnu_load_kext_from_dir (char *dirname, const char *osbundlerequired,
       if (fs)
 	(fs->dir) (dev, path, grub_xnu_load_kext_from_dir_load, &ctx);
 
-      if (ctx.plistname && grub_xnu_check_os_bundle_required
-	  (ctx.plistname, osbundlerequired, &binsuffix))
-	{
+      if (ctx.plistname && grub_xnu_check_os_bundle_required(ctx.plistname, osbundlerequired, &binsuffix)){
 	  if (binsuffix)
 	    {
 	      /* Open the binary. */

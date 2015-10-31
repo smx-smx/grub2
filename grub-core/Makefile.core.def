@@ -1667,6 +1667,7 @@ module = {
 
 module = {
   name = xnu;
+  common = lib/plist.c;
   x86 = loader/xnu_resume.c;
   x86 = loader/i386/xnu.c;
   x86 = loader/xnu.c;
