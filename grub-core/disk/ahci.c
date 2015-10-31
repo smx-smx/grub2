@@ -195,7 +195,7 @@ grub_ahci_pciinit (grub_pci_device_t dev,
 
   addr = grub_pci_make_address (dev, GRUB_PCI_REG_COMMAND);
   grub_pci_write_word (addr, grub_pci_read_word (addr)
-		    | GRUB_PCI_COMMAND_MEM_ENABLED);
+		    | GRUB_PCI_COMMAND_MEM_ENABLED | GRUB_PCI_COMMAND_BUS_MASTER);
 
   hba = grub_pci_device_map_range (dev, bar & GRUB_PCI_ADDR_MEM_MASK,
 				   sizeof (*hba));
@@ -552,7 +552,9 @@ grub_ahci_pciinit (grub_pci_device_t dev,
 		      adevs[i]->hba->ports[adevs[i]->port].sata_error);
 
 	adevs[i]->hba->ports[adevs[i]->port].command
-	  = (adevs[i]->hba->ports[adevs[i]->port].command & 0x0fffffff) | (1 << 28) | 2 | 4;
+	  = (adevs[i]->hba->ports[adevs[i]->port].command & 0x0fffffff) | (1 << 28)
+	  | GRUB_AHCI_HBA_PORT_CMD_SPIN_UP
+	  | GRUB_AHCI_HBA_PORT_CMD_POWER_ON;
 
 	/*  struct grub_disk_ata_pass_through_parms parms2;
 	    grub_memset (&parms2, 0, sizeof (parms2));

@@ -1,43 +1,43 @@
 AutoGen definitions Makefile.tpl;
 
-script = {
+transform_data = {
   installdir = noinst;
   name = gensyminfo.sh;
   common = gensyminfo.sh.in;
 };
 
-script = {
+transform_data = {
   installdir = noinst;
   name = genmod.sh;
   common = genmod.sh.in;
 };
 
-script = {
+transform_data = {
   installdir = noinst;
   name = modinfo.sh;
   common = modinfo.sh.in;
 };
 
-script = {
+transform_data = {
   installdir = platform;
   name = gmodule.pl;
   common = gmodule.pl.in;
 };
 
-script = {
+transform_data = {
   installdir = platform;
   name = gdb_grub;
   common = gdb_grub.in;
 };
 
-script = {
+transform_data = {
   installdir = platform;
   name = grub.chrp;
   common = boot/powerpc/grub.chrp.in;
   enable = powerpc_ieee1275;
 };
 
-script = {
+transform_data = {
   installdir = platform;
   name = bootinfo.txt;
   common = boot/powerpc/bootinfo.txt.in;
@@ -1448,7 +1448,6 @@ module = {
 module = {
   name = gfxmenu;
   common = gfxmenu/gfxmenu.c;
-  common = gfxmenu/model.c;
   common = gfxmenu/view.c;
   common = gfxmenu/font.c;
   common = gfxmenu/icon_manager.c;
@@ -1648,6 +1647,13 @@ module = {
 };
 
 module = {
+  name = xen_boot;
+  common = lib/cmdline.c;
+  arm64 = loader/arm64/xen_boot.c;
+  enable = arm64;
+};
+
+module = {
   name = linux;
   x86 = loader/i386/linux.c;
   xen = loader/i386/xen.c;
@@ -1663,6 +1669,12 @@ module = {
   common = loader/linux.c;
   common = lib/cmdline.c;
   enable = noemu;
+};
+
+module = {
+  name = fdt;
+  arm64 = loader/arm64/fdt.c;
+  enable = arm64;
 };
 
 module = {
